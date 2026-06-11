@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced DDoS Detection Dashboard</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .dashboard {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            color: #333;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .stat-card h3 {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+        
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .stat-change {
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+        
+        .stat-change.up { color: #e74c3c; }
+        .stat-change.down { color: #27ae60; }
+        
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .chart-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        
+        .chart-card h2 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 1.3em;
+        }
+        
+        .threats-list {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        
+        .threat-item {
+            padding: 15px;
+            border-left: 4px solid #e74c3c;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 5px;
+        }
+        
+        .threat-item.medium { border-color: #f39c12; }
+        .threat-item.low { border-color: #27ae60; }
+        
+        .threat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 5px;
+        }
+        
+        .threat-ip {
+            font-weight: bold;
+            font-family: monospace;
+            color: #333;
+        }
+        
+        .severity-badge {
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .severity-badge.critical {
+            background: #e74c3c;
+            color: white;
+        }
+        
+        .severity-badge.high {
+            background: #e67e22;
+            color: white;
+        }
+        
+        .severity-badge.medium {
+            background: #f39c12;
+            color: white;
+        }
+        
+        .severity-badge.low {
+            background: #27ae60;
+            color: white;
+        }
+        
+        .refresh-btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s;
+        }
+        
+        .refresh-btn:hover {
+            background: #5568d3;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>🛡️ Enhanced DDoS Detection Dashboard</h1>
+            <p>Real-time monitoring and threat analysis</p>
+            <button class="refresh-btn" onclick="refreshAll()">🔄 Refresh</button>
+        </div>
+        
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Requests</h3>
+                <div class="stat-value" id="total-requests">-</div>
+                <div class="stat-change" id="requests-change"></div>
+            </div>
+            
+            <div class="stat-card">
+                <h3>Threats Detected</h3>
+                <div class="stat-value" id="total-threats">-</div>
+                <div class="stat-change" id="threats-change"></div>
+            </div>
+            
+            <div class="stat-card">
+                <h3>Critical Alerts</h3>
+                <div class="stat-value" id="critical-threats">-</div>
+                <div class="stat-change up" id="critical-change"></div>
+            </div>
+            
+            <div class="stat-card">
+                <h3>Last Hour Activity</h3>
+                <div class="stat-value" id="last-hour">-</div>
+                <div class="stat-change" id="hour-change"></div>
+            </div>
+        </div>
+        
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h2>📈 Traffic Timeline</h2>
+                <div id="traffic-chart"></div>
+            </div>
+            
+            <div class="chart-card">
+                <h2>🎯 Attack Types Distribution</h2>
+                <canvas id="attack-types-chart"></canvas>
+            </div>
+        </div>
+        
+        <div class="threats-list">
+            <h2>🚨 Recent Threats</h2>
+            <div id="threats-container">
+                <div class="loading">Loading threats...</div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let attackTypesChart = null;
+        
+        async function fetchStats() {
+            try {
+                const response = await fetch('/api/enhanced/stats');
+                const data = await response.json();
+                
+                document.getElementById('total-requests').textContent = 
+                    data.current.total_requests.toLocaleString();
+                document.getElementById('total-threats').textContent = 
+                    data.threats.total.toLocaleString();
+                document.getElementById('critical-threats').textContent = 
+                    data.threats.critical.toLocaleString();
+                document.getElementById('last-hour').textContent = 
+                    data.current.last_hour.toLocaleString();
+                
+                // Update attack types chart
+                updateAttackTypesChart(data.attack_types);
+            } catch (error) {
+                console.error('Error fetching stats:', error);
+            }
+        }
+        
+        async function fetchChartData() {
+            try {
+                const response = await fetch('/api/enhanced/chart-data');
+                const data = await response.json();
+                
+                // Traffic timeline
+                const trafficTrace = {
+                    x: data.traffic.map(d => d.time),
+                    y: data.traffic.map(d => d.count),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Traffic',
+                    line: { color: '#667eea', width: 2 }
+                };
+                
+                const threatsTrace = {
+                    x: data.threats.map(d => d.time),
+                    y: data.threats.map(d => d.count),
+                    type: 'scatter',
+                    mode: 'lines+markers',
+                    name: 'Threats',
+                    line: { color: '#e74c3c', width: 2 }
+                };
+                
+                const layout = {
+                    showlegend: true,
+                    height: 300,
+                    margin: { t: 20, b: 40, l: 50, r: 20 },
+                    xaxis: { title: 'Time' },
+                    yaxis: { title: 'Count' }
+                };
+                
+                Plotly.newPlot('traffic-chart', [trafficTrace, threatsTrace], layout);
+            } catch (error) {
+                console.error('Error fetching chart data:', error);
+            }
+        }
+        
+        function updateAttackTypesChart(attackTypes) {
+            const ctx = document.getElementById('attack-types-chart').getContext('2d');
+            
+            if (attackTypesChart) {
+                attackTypesChart.destroy();
+            }
+            
+            const labels = Object.keys(attackTypes);
+            const data = Object.values(attackTypes);
+            
+            attackTypesChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: [
+                            '#e74c3c', '#3498db', '#f39c12', 
+                            '#27ae60', '#9b59b6', '#1abc9c'
+                        ]
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom' }
+                    }
+                }
+            });
+        }
+        
+        async function fetchRecentThreats() {
+            try {
+                const response = await fetch('/api/enhanced/recent-threats?limit=10');
+                const threats = await response.json();
+                
+                const container = document.getElementById('threats-container');
+                
+                if (threats.length === 0) {
+                    container.innerHTML = '<div class="loading">No recent threats</div>';
+                    return;
+                }
+                
+                container.innerHTML = threats.map(threat => `
+                    <div class="threat-item ${threat.severity.toLowerCase()}">
+                        <div class="threat-header">
+                            <span class="threat-ip">${threat.source_ip}</span>
+                            <span class="severity-badge ${threat.severity.toLowerCase()}">
+                                ${threat.severity}
+                            </span>
+                        </div>
+                        <div>
+                            <strong>${threat.attack_type}</strong> - 
+                            Confidence: ${(threat.confidence * 100).toFixed(1)}%
+                        </div>
+                        <div style="font-size: 0.85em; color: #666; margin-top: 5px;">
+                            ${new Date(threat.timestamp).toLocaleString()}
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error fetching threats:', error);
+            }
+        }
+        
+        function refreshAll() {
+            fetchStats();
+            fetchChartData();
+            fetchRecentThreats();
+        }
+        
+        // Initial load
+        refreshAll();
+        
+        // Auto-refresh every 5 seconds
+        setInterval(refreshAll, 5000);
+    </script>
+</body>
+</html>
